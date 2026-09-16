@@ -135,6 +135,41 @@
       .currency { font-size: 18px; font-weight: 800; white-space: nowrap; }
       .label { display: block; margin: 18px 0 9px; color: var(--muted); font-size: 13px; font-weight: 800; }
 
+      .mode-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .mode-button {
+        min-height: 54px;
+        border: 2px solid var(--border);
+        border-radius: 15px;
+        background: #fff;
+        color: var(--muted);
+        font-weight: 900;
+      }
+
+      .mode-button.test.active {
+        border-color: #e5aa24;
+        color: #795800;
+        background: #fff5cf;
+      }
+
+      .mode-button.live.active {
+        border-color: #d93025;
+        color: #fff;
+        background: #d93025;
+      }
+
+      .mode-help {
+        margin: -9px 2px 14px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
       .quick-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -235,7 +270,7 @@
       <div class="topbar">
         <div>
           <div class="brand">LIFF PAYMENT</div>
-          <div class="version">STEP1-GITHUB-1.1.0 · MOCK</div>
+          <div class="version">STEP2-STRIPE-2.0.0 · TEST/LIVE</div>
         </div>
         <div id="profile" class="profile">
           <img id="profileImage" alt="รูปโปรไฟล์ LINE">
@@ -249,8 +284,15 @@
       </div>
 
       <section class="card">
-        <p class="eyebrow">STEP 1 · ทดสอบหน้าจอ</p>
+        <p class="eyebrow">STEP 2 · Stripe Checkout</p>
         <h1>ระบุยอดรับชำระ</h1>
+
+        <span class="label" style="margin-top:0">โหมดรับชำระ</span>
+        <div class="mode-grid">
+          <button id="testMode" class="mode-button test active" type="button">TEST · ทดสอบ</button>
+          <button id="liveMode" class="mode-button live" type="button">LIVE · เงินจริง</button>
+        </div>
+        <div id="modeHelp" class="mode-help">TEST: ใช้ Stripe Sandbox ไม่มีเงินจริง</div>
 
         <div class="amount-wrap">
           <input id="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-label="จำนวนเงิน">
@@ -270,27 +312,19 @@
         <button id="reviewButton" class="primary" type="button">ตรวจสอบยอดเงิน</button>
         <div id="message" class="message" role="alert"></div>
 
-        <div id="result" class="result">
-          <div class="result-icon">✅</div>
-          <h2>STEP 1 ผ่าน</h2>
-          <strong id="resultAmount"></strong>
-          <small id="resultReference"></small>
-          <small>ยังไม่มีการเรียก Stripe และไม่มีเงินจริงถูกเรียกเก็บ</small>
-        </div>
-
         <div class="note">
-          รุ่นนี้เป็นโหมดจำลองบน GitHub Pages ยังไม่สร้าง QR และไม่เรียก Stripe
+          TEST ใช้ Key ทดสอบ ส่วน LIVE จะทำงานเมื่อเพิ่ม Restricted Live Key ใน Apps Script แล้วเท่านั้น
         </div>
       </section>
     </main>
 
     <div id="confirmOverlay" class="overlay" aria-hidden="true">
       <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
-        <h2 id="confirmTitle">ยืนยันยอดทดสอบ</h2>
+        <h2 id="confirmTitle">ยืนยันยอด TEST</h2>
         <div id="confirmAmount" class="confirm-amount">0.00 บาท</div>
         <div class="actions">
           <button id="cancelButton" class="secondary" type="button">ย้อนกลับ</button>
-          <button id="mockButton" class="primary" type="button" style="margin-top:0">ยืนยัน MOCK</button>
+          <button id="payButton" class="primary" type="button" style="margin-top:0">ไปชำระ TEST</button>
         </div>
       </section>
     </div>
@@ -300,14 +334,20 @@
         'use strict';
 
         const LIFF_ID = document.body.dataset.liffId.trim();
+        const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby6qUd4KMItce3Ufv9aCUH4-vxfu9cNiGPbKiXLcJ5ppGKpy4mYC4alGEVOOpKPrSKA/exec';
         const amountInput = document.getElementById('amount');
         const message = document.getElementById('message');
         const lineStatus = document.getElementById('lineStatus');
         const lineStatusText = document.getElementById('lineStatusText');
         const overlay = document.getElementById('confirmOverlay');
         const reviewButton = document.getElementById('reviewButton');
-        const mockButton = document.getElementById('mockButton');
+        const payButton = document.getElementById('payButton');
+        const testModeButton = document.getElementById('testMode');
+        const liveModeButton = document.getElementById('liveMode');
+        const modeHelp = document.getElementById('modeHelp');
         let confirmedAmountText = '';
+        let paymentMode = 'TEST';
+        let lineAccessToken = '';
 
         function parseAmount(value) {
           const normalized = String(value || '').trim().replace(/,/g, '');
@@ -348,6 +388,7 @@
             }
 
             const profile = await liff.getProfile();
+            lineAccessToken = liff.getAccessToken() || '';
             document.getElementById('profileName').textContent = profile.displayName || 'LINE User';
             if (profile.pictureUrl) {
               document.getElementById('profileImage').src = profile.pictureUrl;
@@ -369,7 +410,6 @@
             } else {
               amountInput.value = button.dataset.amount;
             }
-            document.getElementById('result').classList.remove('show');
             showMessage('');
             amountInput.focus();
           });
@@ -378,7 +418,23 @@
         amountInput.addEventListener('input', () => {
           amountInput.value = amountInput.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
           showMessage('');
-          document.getElementById('result').classList.remove('show');
+        });
+
+        function setPaymentMode(mode) {
+          paymentMode = mode;
+          testModeButton.classList.toggle('active', mode === 'TEST');
+          liveModeButton.classList.toggle('active', mode === 'LIVE');
+          modeHelp.textContent = mode === 'LIVE'
+            ? 'LIVE: เงินจริง · ระบบจะทำงานเมื่อมี Restricted Live Key'
+            : 'TEST: ใช้ Stripe Sandbox ไม่มีเงินจริง';
+        }
+
+        testModeButton.addEventListener('click', () => setPaymentMode('TEST'));
+        liveModeButton.addEventListener('click', () => {
+          const accepted = window.confirm(
+            'โหมด LIVE เป็นเงินจริง ต้องการเลือกโหมด LIVE หรือไม่?'
+          );
+          if (accepted) setPaymentMode('LIVE');
         });
 
         reviewButton.addEventListener('click', () => {
@@ -390,7 +446,12 @@
           }
 
           confirmedAmountText = amount.toFixed(2);
+          document.getElementById('confirmTitle').textContent =
+            'ยืนยันยอด ' + paymentMode;
           document.getElementById('confirmAmount').textContent = formatAmount(amount) + ' บาท';
+          payButton.textContent = paymentMode === 'LIVE'
+            ? 'ยืนยันรับเงินจริง'
+            : 'ไปชำระ TEST';
           overlay.classList.add('show');
           overlay.setAttribute('aria-hidden', 'false');
         });
@@ -405,34 +466,59 @@
           overlay.setAttribute('aria-hidden', 'true');
         }
 
-        mockButton.addEventListener('click', () => {
-          mockButton.disabled = true;
-          mockButton.textContent = 'กำลังตรวจสอบ…';
+        payButton.addEventListener('click', () => {
+          const amount = parseAmount(confirmedAmountText);
+
+          if (amount === null) {
+            closeOverlay();
+            showMessage('ยอดเงินไม่ถูกต้อง กรุณาเลือกยอดใหม่');
+            return;
+          }
+
+          if (!lineAccessToken) {
+            closeOverlay();
+            showMessage('ไม่พบ LINE access token กรุณาปิดแล้วเปิดผ่าน LIFF ใหม่');
+            return;
+          }
+
+          payButton.disabled = true;
+          payButton.textContent = 'กำลังเปิด Stripe…';
           showMessage('');
 
-          window.setTimeout(() => {
-            const amount = parseAmount(confirmedAmountText);
-            const now = new Date();
-            const pad = (value) => String(value).padStart(2, '0');
-            const reference = 'MOCK-' + now.getFullYear()
-              + pad(now.getMonth() + 1)
-              + pad(now.getDate()) + '-'
-              + pad(now.getHours())
-              + pad(now.getMinutes())
-              + pad(now.getSeconds());
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = GAS_WEB_APP_URL;
+          form.target = '_self';
 
-            mockButton.disabled = false;
-            mockButton.textContent = 'ยืนยัน MOCK';
-            closeOverlay();
-            document.getElementById('resultAmount').textContent = formatAmount(amount) + ' บาท';
-            document.getElementById('resultReference').textContent = 'เลขอ้างอิง ' + reference;
-            document.getElementById('result').classList.add('show');
-          }, 350);
+          const fields = {
+            action: 'create_payment',
+            amount: amount.toFixed(2),
+            mode: paymentMode,
+            line_access_token: lineAccessToken,
+            request_id: 'liff-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10)
+          };
+
+          Object.keys(fields).forEach((name) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = fields[name];
+            form.appendChild(input);
+          });
+
+          document.body.appendChild(form);
+          form.submit();
         });
+
+        const query = new URLSearchParams(window.location.search);
+        if (query.get('stripe') === 'cancel') {
+          showMessage('ยกเลิกการชำระเงินแล้ว ยังไม่มีการเรียกเก็บเงิน');
+        } else if (query.get('stripe') === 'return') {
+          showMessage('กลับจาก Stripe แล้ว ขั้นตอนถัดไปจะตรวจสอบสถานะการชำระเงิน');
+        }
 
         initializeLiff();
       })();
     </script>
   </body>
 </html>
-
