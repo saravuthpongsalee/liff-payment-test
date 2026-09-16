@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8">
+    <meta name="color-scheme" content="light">
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+      :root {
+        --line: #06c755;
+        --line-dark: #04a747;
+        --ink: #173127;
+        --muted: #66766f;
+        --surface: #ffffff;
+        --soft: #edf9f2;
+        --border: #dce9e1;
+        --danger: #c93d3d;
+        --shadow: 0 16px 42px rgba(20, 61, 42, 0.13);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 10% 0%, #dff8e9 0, transparent 36%),
+          linear-gradient(180deg, #f8fffb 0%, #eef7f2 100%);
+        font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+      }
+
+      button, input { font: inherit; }
+
+      .app {
+        width: min(100%, 520px);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: 18px 16px 32px;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .brand { font-weight: 900; letter-spacing: .02em; }
+      .version { color: var(--muted); font-size: 12px; }
+
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 11px 13px;
+        margin-bottom: 14px;
+        border: 1px solid var(--border);
+        border-radius: 15px;
+        background: rgba(255,255,255,.82);
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: #f1aa2c;
+        box-shadow: 0 0 0 5px rgba(241,170,44,.13);
+      }
+
+      .status.ok .dot {
+        background: var(--line);
+        box-shadow: 0 0 0 5px rgba(6,199,85,.13);
+      }
+
+      .status.error .dot {
+        background: var(--danger);
+        box-shadow: 0 0 0 5px rgba(201,61,61,.12);
+      }
+
+      .profile {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
+        min-width: 0;
+      }
+
+      .profile.show { display: flex; }
+      .profile img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+      .profile span { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+
+      .card {
+        padding: 22px 18px 18px;
+        border: 1px solid rgba(220,233,225,.8);
+        border-radius: 24px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .eyebrow { margin: 0; color: var(--muted); font-size: 13px; font-weight: 700; }
+      h1 { margin: 4px 0 20px; font-size: 27px; line-height: 1.25; }
+
+      .amount-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border: 2px solid var(--border);
+        border-radius: 18px;
+        background: #fbfffc;
+        transition: border-color .2s, box-shadow .2s;
+      }
+
+      .amount-wrap:focus-within {
+        border-color: var(--line);
+        box-shadow: 0 0 0 5px rgba(6,199,85,.1);
+      }
+
+      #amount {
+        width: 100%;
+        min-width: 0;
+        padding: 5px 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--ink);
+        font-size: clamp(34px, 11vw, 52px);
+        font-weight: 900;
+        text-align: right;
+      }
+
+      .currency { font-size: 18px; font-weight: 800; white-space: nowrap; }
+      .label { display: block; margin: 18px 0 9px; color: var(--muted); font-size: 13px; font-weight: 800; }
+
+      .quick-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 9px;
+      }
+
+      .quick {
+        min-height: 48px;
+        border: 1px solid #bfe5ce;
+        border-radius: 14px;
+        background: var(--soft);
+        color: #087236;
+        font-weight: 900;
+      }
+
+      .quick:active { transform: scale(.97); }
+
+      .primary, .secondary {
+        width: 100%;
+        min-height: 54px;
+        border-radius: 16px;
+        font-weight: 900;
+      }
+
+      .primary {
+        margin-top: 18px;
+        border: 0;
+        color: #fff;
+        background: linear-gradient(135deg, var(--line), var(--line-dark));
+        box-shadow: 0 11px 24px rgba(6,199,85,.24);
+      }
+
+      .primary:disabled { opacity: .55; box-shadow: none; }
+      .secondary { border: 1px solid var(--border); color: var(--ink); background: #fff; }
+
+      .note {
+        margin: 14px 2px 0;
+        padding: 11px 13px;
+        border-radius: 13px;
+        color: #705300;
+        background: #fff6cf;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .message { min-height: 22px; margin-top: 12px; color: var(--danger); font-size: 13px; text-align: center; }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: none;
+        align-items: flex-end;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(15,38,28,.42);
+        backdrop-filter: blur(4px);
+      }
+
+      .overlay.show { display: flex; }
+
+      .sheet {
+        width: min(100%, 500px);
+        padding: 22px 18px 18px;
+        border-radius: 24px;
+        background: #fff;
+        box-shadow: var(--shadow);
+      }
+
+      .sheet h2 { margin: 0 0 6px; font-size: 21px; }
+      .confirm-amount { margin: 18px 0; color: #087236; font-size: 42px; font-weight: 950; text-align: center; }
+      .actions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 10px; }
+
+      .result {
+        display: none;
+        margin-top: 16px;
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px solid #afe2c3;
+        background: #ebfaF1;
+        text-align: center;
+      }
+
+      .result.show { display: block; }
+      .result-icon { font-size: 38px; }
+      .result h2 { margin: 6px 0; }
+      .result strong { display: block; margin: 8px 0; font-size: 28px; color: #087236; }
+      .result small { display: block; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+
+      @media (min-width: 540px) {
+        .app { padding-top: 30px; }
+        .overlay { align-items: center; }
+      }
+    </style>
+  </head>
+  <body data-liff-id="2011631253-Zud5mOMw">
+    <main class="app">
+      <div class="topbar">
+        <div>
+          <div class="brand">LIFF PAYMENT</div>
+          <div class="version">STEP1-GITHUB-1.1.0 · MOCK</div>
+        </div>
+        <div id="profile" class="profile">
+          <img id="profileImage" alt="รูปโปรไฟล์ LINE">
+          <span id="profileName"></span>
+        </div>
+      </div>
+
+      <div id="lineStatus" class="status">
+        <span class="dot"></span>
+        <span id="lineStatusText">กำลังเชื่อมต่อ LINE LIFF…</span>
+      </div>
+
+      <section class="card">
+        <p class="eyebrow">STEP 1 · ทดสอบหน้าจอ</p>
+        <h1>ระบุยอดรับชำระ</h1>
+
+        <div class="amount-wrap">
+          <input id="amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" aria-label="จำนวนเงิน">
+          <span class="currency">บาท</span>
+        </div>
+
+        <span class="label">ราคาด่วน</span>
+        <div class="quick-grid">
+          <button class="quick" type="button" data-amount="20">20</button>
+          <button class="quick" type="button" data-amount="50">50</button>
+          <button class="quick" type="button" data-amount="100">100</button>
+          <button class="quick" type="button" data-amount="200">200</button>
+          <button class="quick" type="button" data-amount="500">500</button>
+          <button class="quick" type="button" data-clear="true">ล้างยอด</button>
+        </div>
+
+        <button id="reviewButton" class="primary" type="button">ตรวจสอบยอดเงิน</button>
+        <div id="message" class="message" role="alert"></div>
+
+        <div id="result" class="result">
+          <div class="result-icon">✅</div>
+          <h2>STEP 1 ผ่าน</h2>
+          <strong id="resultAmount"></strong>
+          <small id="resultReference"></small>
+          <small>ยังไม่มีการเรียก Stripe และไม่มีเงินจริงถูกเรียกเก็บ</small>
+        </div>
+
+        <div class="note">
+          รุ่นนี้เป็นโหมดจำลองบน GitHub Pages ยังไม่สร้าง QR และไม่เรียก Stripe
+        </div>
+      </section>
+    </main>
+
+    <div id="confirmOverlay" class="overlay" aria-hidden="true">
+      <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+        <h2 id="confirmTitle">ยืนยันยอดทดสอบ</h2>
+        <div id="confirmAmount" class="confirm-amount">0.00 บาท</div>
+        <div class="actions">
+          <button id="cancelButton" class="secondary" type="button">ย้อนกลับ</button>
+          <button id="mockButton" class="primary" type="button" style="margin-top:0">ยืนยัน MOCK</button>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      (() => {
+        'use strict';
+
+        const LIFF_ID = document.body.dataset.liffId.trim();
+        const amountInput = document.getElementById('amount');
+        const message = document.getElementById('message');
+        const lineStatus = document.getElementById('lineStatus');
+        const lineStatusText = document.getElementById('lineStatusText');
+        const overlay = document.getElementById('confirmOverlay');
+        const reviewButton = document.getElementById('reviewButton');
+        const mockButton = document.getElementById('mockButton');
+        let confirmedAmountText = '';
+
+        function parseAmount(value) {
+          const normalized = String(value || '').trim().replace(/,/g, '');
+          if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return null;
+          const amount = Number(normalized);
+          if (!Number.isFinite(amount) || amount < 1 || amount > 100000) return null;
+          return Math.round(amount * 100) / 100;
+        }
+
+        function formatAmount(value) {
+          return new Intl.NumberFormat('th-TH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }).format(value);
+        }
+
+        function showMessage(text) {
+          message.textContent = text || '';
+        }
+
+        function setLineStatus(kind, text) {
+          lineStatus.className = 'status' + (kind ? ' ' + kind : '');
+          lineStatusText.textContent = text;
+        }
+
+        async function initializeLiff() {
+          if (!LIFF_ID) {
+            setLineStatus('error', 'ยังไม่ได้กำหนด LIFF ID');
+            return;
+          }
+
+          try {
+            await liff.init({ liffId: LIFF_ID, withLoginOnExternalBrowser: true });
+            if (!liff.isLoggedIn()) {
+              setLineStatus('', 'กำลังเข้าสู่ระบบ LINE…');
+              liff.login();
+              return;
+            }
+
+            const profile = await liff.getProfile();
+            document.getElementById('profileName').textContent = profile.displayName || 'LINE User';
+            if (profile.pictureUrl) {
+              document.getElementById('profileImage').src = profile.pictureUrl;
+            } else {
+              document.getElementById('profileImage').style.display = 'none';
+            }
+            document.getElementById('profile').classList.add('show');
+            setLineStatus('ok', liff.isInClient() ? 'เปิดผ่าน LINE LIFF สำเร็จ' : 'LINE Login สำเร็จ (External Browser)');
+          } catch (error) {
+            console.error(error);
+            setLineStatus('error', 'เชื่อมต่อ LIFF ไม่สำเร็จ: ' + (error.message || error));
+          }
+        }
+
+        document.querySelectorAll('.quick').forEach((button) => {
+          button.addEventListener('click', () => {
+            if (button.dataset.clear) {
+              amountInput.value = '';
+            } else {
+              amountInput.value = button.dataset.amount;
+            }
+            document.getElementById('result').classList.remove('show');
+            showMessage('');
+            amountInput.focus();
+          });
+        });
+
+        amountInput.addEventListener('input', () => {
+          amountInput.value = amountInput.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+          showMessage('');
+          document.getElementById('result').classList.remove('show');
+        });
+
+        reviewButton.addEventListener('click', () => {
+          const amount = parseAmount(amountInput.value);
+          if (amount === null) {
+            showMessage('กรุณาใส่ยอด 1.00–100,000.00 บาท และทศนิยมไม่เกิน 2 ตำแหน่ง');
+            amountInput.focus();
+            return;
+          }
+
+          confirmedAmountText = amount.toFixed(2);
+          document.getElementById('confirmAmount').textContent = formatAmount(amount) + ' บาท';
+          overlay.classList.add('show');
+          overlay.setAttribute('aria-hidden', 'false');
+        });
+
+        document.getElementById('cancelButton').addEventListener('click', closeOverlay);
+        overlay.addEventListener('click', (event) => {
+          if (event.target === overlay) closeOverlay();
+        });
+
+        function closeOverlay() {
+          overlay.classList.remove('show');
+          overlay.setAttribute('aria-hidden', 'true');
+        }
+
+        mockButton.addEventListener('click', () => {
+          mockButton.disabled = true;
+          mockButton.textContent = 'กำลังตรวจสอบ…';
+          showMessage('');
+
+          window.setTimeout(() => {
+            const amount = parseAmount(confirmedAmountText);
+            const now = new Date();
+            const pad = (value) => String(value).padStart(2, '0');
+            const reference = 'MOCK-' + now.getFullYear()
+              + pad(now.getMonth() + 1)
+              + pad(now.getDate()) + '-'
+              + pad(now.getHours())
+              + pad(now.getMinutes())
+              + pad(now.getSeconds());
+
+            mockButton.disabled = false;
+            mockButton.textContent = 'ยืนยัน MOCK';
+            closeOverlay();
+            document.getElementById('resultAmount').textContent = formatAmount(amount) + ' บาท';
+            document.getElementById('resultReference').textContent = 'เลขอ้างอิง ' + reference;
+            document.getElementById('result').classList.add('show');
+          }, 350);
+        });
+
+        initializeLiff();
+      })();
+    </script>
+  </body>
+</html>
+
